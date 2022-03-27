@@ -1,0 +1,14 @@
+version: "3.3"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: config/local/Dockerfile
+    volumes:
+      - ./src:/usr/src/app
+    ports:
+      - "8888:8888"
+    environment:
+      INSTALL_DEV: "true"
+    command: --debug

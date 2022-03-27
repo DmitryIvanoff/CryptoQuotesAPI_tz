@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+
+# Unit test / coverage reports
+.pytest_cache/
+
+*.log
+db.sqlite3
+*.db
+
+# pyenv
+.python-version
+
+# Environments
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# mypy
+.mypy_cache/
+.idea/
+
+# Ansible
+*.retry
+
+static
+poetry.lock

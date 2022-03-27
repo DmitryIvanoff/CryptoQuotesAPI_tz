@@ -1,0 +1,27 @@
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+^/.git
+__pycache__
+venv/*
+'''
+
+[tool.poetry]
+name = "cryptocurrquotesservice"
+version = "0.1.0"
+description = "crypto currencies polling service"
+authors = ["DmitryIvanoff <d-iv.96@yandex.ru>"]
+license = "MIT Licence"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.75.0"
+uvicorn = {extras = ["standard"], version = "^0.17.6"}
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
