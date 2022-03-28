@@ -20,8 +20,12 @@ python = "^3.10"
 fastapi = "^0.75.0"
 uvicorn = {extras = ["standard"], version = "^0.17.6"}
 aiohttp = "^3.8.1"
+databases = {extras = ["aiosqlite"], version = "^0.5.5"}
+aiosqlite = "^0.17.0"
+SQLAlchemy = "^1.4.32"
 
 [tool.poetry.dev-dependencies]
+black = "^22.1.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
