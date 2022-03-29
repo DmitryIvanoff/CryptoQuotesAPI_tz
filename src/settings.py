@@ -1,5 +1,7 @@
 import logging.config
 
+DEBUG = True
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -11,7 +13,7 @@ LOGGING = {
     "loggers": {
         "app": {
             "handlers": ["console"],
-            "level": "INFO",
+            "level": "INFO" if not DEBUG else "DEBUG",
         },
     },
 }

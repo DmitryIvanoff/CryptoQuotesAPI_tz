@@ -9,13 +9,12 @@ import logging
 import settings
 from traceback import format_exc
 
-# from sqlalchemy.orm
 from models import create_all, check_data, drop_all, TABLES, fetch_data
 from schemas import Granularity, Exchange, Pair, Candle
 
 logger = logging.getLogger("app")
 
-app = FastAPI(debug=True)
+app = FastAPI(debug=settings.DEBUG)
 
 
 @app.on_event("startup")
@@ -44,7 +43,11 @@ async def get_db():
 
 
 @app.get(r"/candles/{pair:path}", response_model=list[Candle])
-async def get_candles(pair: Pair, by: Granularity = Granularity.by_hour, db: databases.Database = fastapi.Depends(get_db)):
+async def get_candles(
+    pair: Pair,
+    by: Granularity = Granularity.by_hour,
+    db: databases.Database = fastapi.Depends(get_db),
+):
     result = await fetch_data(db, pair, by)
     return result
 
