@@ -1,3 +1,4 @@
+import asyncio
 from asyncio.locks import Event
 from fastapi import FastAPI, responses
 from traceback import format_exc
@@ -21,14 +22,22 @@ async def startup_event():
     event = Event()
     event.clear()
     await db.connect()
+
+    async def _check_tables_ifexist(t):
+        await db.execute(f"SELECT * FROM {TABLES[t].name}")
+
+    coros = []
     try:
         for t in TABLES:
-            await db.execute(f"SELECT * FROM {TABLES[t].name}")
-            await create_view(db, TABLES[t])
+            coros.append(_check_tables_ifexist(t))
+        await asyncio.gather(*coros)
         event.set()
     except Exception as e:
         logger.error(format_exc(limit=1))
-        await create_all(db, event)
+        try:
+            await create_all(db, event)
+        except Exception as e:
+            logger.error(format_exc())
     finally:
         if not event.is_set():
             logger.debug("waiting for db")

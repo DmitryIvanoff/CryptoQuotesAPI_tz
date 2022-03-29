@@ -78,28 +78,35 @@ async def create_all(db: databases.Database, event: asyncio.Event | None = None)
     logger.info("creating tables...")
 
     logger.debug(TABLES)
+    coros = []
     async with db.transaction():
         for table in TABLES:
-            t = TABLES[table]
-            logger.debug(t)
-            query = CreateTable(t, if_not_exists=True)
-            logger.debug(query)
-            await db.execute(query)
-            await create_view(db, table)
-            for index in t.indexes:
-                query = CreateIndex(index)
-                logger.debug(query)
-                try:
-                    await db.execute(query)
-                except Exception as e:
-                    logger.exception(e)
-
+            coros.append(create_table(db, table))
+        await asyncio.gather(*coros)
     if event is not None:
         logger.debug("event is set")
         event.set()
 
 
-async def load_data_to_db(db: databases.Database, table: Table, candles: list[Candle]):
+async def create_table(db, table):
+    t = TABLES[table]
+    logger.debug(t)
+    query = CreateTable(t, if_not_exists=True)
+    logger.debug(query)
+    await db.execute(query)
+    await create_view(db, t)
+    for index in t.indexes:
+        query = CreateIndex(index)
+        logger.debug(query)
+        try:
+            await db.execute(query)
+        except Exception as e:
+            logger.exception(e)
+
+
+async def load_candles_to_table(
+    db: databases.Database, table: Table, candles: list[Candle]
+):
     if candles:
         await db.execute(table.insert().values([candle.dict() for candle in candles]))
 
@@ -134,59 +141,57 @@ async def fetch_data(
 
 async def check_data(db: databases.Database):
     logger.info("checking data...")
-    # todo: попробовать поиграться с очередностью
-    #  загрузки данных с бирж в БД
+    futures = []
     for interval in Granularity:
         for pair in Pair:
             for exchange in Exchange:
-                table = TABLES[(pair, interval)]
-                result: Candle | None = await db.fetch_one(
-                    table.select()
-                    .where(table.c.exchange == exchange)
-                    .order_by(table.c.since.desc())
-                )
-                logger.debug(f"{exchange}:\n{result}")
-                if not result:
-                    # set start_since todo: to settings
-                    if interval == Granularity.by_hour:
-                        start_since = datetime.datetime.now() - datetime.timedelta(
-                            days=30
-                        )
-                    elif interval == Granularity.by_minute:
-                        start_since = datetime.datetime.now() - datetime.timedelta(
-                            days=1
-                        )
-                    try:
-                        candles = await load_data(
-                            exchange,
-                            pair,
-                            start_since,
-                            interval,
-                        )
-                    except Exception as e:
-                        logger.exception(e)
-                        continue
-                    logger.debug(candles)
-                    await load_data_to_db(db, table, candles)
-                else:
-                    start_since = result.since
-                    try:
-                        candles = await load_data(
-                            exchange,
-                            pair,
-                            start_since,
-                            interval,
-                        )
-                    except Exception as e:
-                        logger.exception(e)
-                        continue
+                futures.append(load_from_exchange_to_db(db, exchange, interval, pair))
+    await asyncio.gather(*futures)
 
-                    # filter candles
-                    candles = [
-                        candle for candle in candles if candle.since != start_since
-                    ]
-                    if not candles:
-                        continue
 
-                    logger.debug(candles)
-                    await load_data_to_db(db, table, candles)
+async def load_from_exchange_to_db(db, exchange, interval, pair):
+    table = TABLES[(pair, interval)]
+    result: Candle | None = await db.fetch_one(
+        table.select()
+        .where(table.c.exchange == exchange)
+        .order_by(table.c.since.desc())
+    )
+    logger.debug(f"{exchange=}:\n{result=}")
+    if not result:
+        # set start_since todo: to settings
+        if interval == Granularity.by_hour:
+            start_since = datetime.datetime.now() - datetime.timedelta(days=30)
+        elif interval == Granularity.by_minute:
+            start_since = datetime.datetime.now() - datetime.timedelta(days=1)
+        try:
+            candles = await load_data(
+                exchange,
+                pair,
+                start_since,
+                interval,
+            )
+        except Exception as e:
+            logger.exception(e)
+            return
+        logger.debug(candles)
+        await load_candles_to_table(db, table, candles)
+    else:
+        start_since = result.since
+        try:
+            candles = await load_data(
+                exchange,
+                pair,
+                start_since,
+                interval,
+            )
+        except Exception as e:
+            logger.exception(e)
+            return
+
+        # filter candles
+        candles = [candle for candle in candles if candle.since != start_since]
+        if not candles:
+            return
+
+        logger.debug(candles)
+        await load_candles_to_table(db, table, candles)
