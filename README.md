@@ -31,4 +31,8 @@ https://docs.bitfinex.com/reference
 - async Http Client: aiohttp
 - pytest
 - poetry
-- docker, docker-compose ?
+- docker, docker-compose
+
+#### todo
+- tests
+- reverse proxy, nginx, traefik?

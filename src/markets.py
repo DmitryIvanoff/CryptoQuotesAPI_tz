@@ -1,9 +1,8 @@
 import datetime
 import aiohttp
 from schemas import Granularity, Exchange, Pair, Candle
-import logging
+from settings import logger
 
-logger = logging.getLogger("app")
 MARKETS = {
     "KRAKEN": {
         "endpoint": "https://api.kraken.com/0/public/OHLC",

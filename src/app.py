@@ -3,13 +3,12 @@ from asyncio.locks import Event
 from fastapi import FastAPI, responses
 from traceback import format_exc
 import databases
-import logging
 import settings
 
 from models import create_all, check_data, drop_all, TABLES, fetch_data, create_view
 from schemas import Granularity, Pair, CandleOut
+from settings import logger
 
-logger = logging.getLogger("app")
 
 app = FastAPI(debug=settings.DEBUG)
 
@@ -40,7 +39,7 @@ async def startup_event():
             logger.error(format_exc())
     finally:
         if not event.is_set():
-            logger.debug("waiting for db")
+            logger.debug("waiting for db...")
             await event.wait()
         await check_data(db)
 
@@ -61,7 +60,7 @@ async def get_candles(
     by: Granularity = Granularity.by_hour,
 ):
     result = await fetch_data(db, pair, by)
-    logger.debug(result)
+    logger.opt(lazy=True).debug(result)
     return result
 
 

@@ -1,4 +1,6 @@
 import logging.config
+import sys
+from loguru import logger
 
 DEBUG = True
 
@@ -21,3 +23,5 @@ LOGGING = {
 logging.config.dictConfig(LOGGING)
 
 DATABASE_URL = "sqlite:///./test.db"
+
+logger.level("INFO" if not DEBUG else "DEBUG")

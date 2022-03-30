@@ -1,7 +1,7 @@
 import datetime
-import logging
 import databases
 import asyncio
+from pprint import pformat
 from sqlalchemy.schema import CreateTable, CreateIndex, Index, DropTable, DropIndex
 from sqlalchemy import (
     Column,
@@ -24,8 +24,8 @@ from sqlalchemy import (
 )
 from schemas import Granularity, Exchange, Pair, Candle, CandleOut
 from markets import load_data
+from settings import logger
 
-logger = logging.getLogger("app")
 metadata = MetaData()
 
 TABLES = {
@@ -173,7 +173,7 @@ async def load_from_exchange_to_db(db, exchange, interval, pair):
         except Exception as e:
             logger.exception(e)
             return
-        logger.debug(candles)
+        logger.opt(lazy=True).debug(pformat(candles, indent=2, width=500))
         await load_candles_to_table(db, table, candles)
     else:
         start_since = result.since
@@ -193,5 +193,5 @@ async def load_from_exchange_to_db(db, exchange, interval, pair):
         if not candles:
             return
 
-        logger.debug(candles)
+        logger.opt(lazy=True).debug(pformat(candles, indent=2, width=500))
         await load_candles_to_table(db, table, candles)

@@ -23,6 +23,7 @@ aiohttp = "^3.8.1"
 databases = {extras = ["aiosqlite"], version = "^0.5.5"}
 aiosqlite = "^0.17.0"
 SQLAlchemy = "^1.4.32"
+loguru = "^0.6.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.1.0"
