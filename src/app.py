@@ -1,14 +1,14 @@
 import asyncio
 from asyncio.locks import Event
-from fastapi import FastAPI, responses
 from traceback import format_exc
+
 import databases
+from fastapi import FastAPI, responses
+
 import settings
-
-from models import create_all, check_data, drop_all, TABLES, fetch_data, create_view
-from schemas import Granularity, Pair, CandleOut
+from models import TABLES, check_data, create_all, fetch_data
+from schemas import CandleOut, Granularity, Pair
 from settings import logger
-
 
 app = FastAPI(debug=settings.DEBUG)
 
@@ -31,11 +31,11 @@ async def startup_event():
             coros.append(_check_tables_ifexist(t))
         await asyncio.gather(*coros)
         event.set()
-    except Exception as e:
+    except Exception:
         logger.error(format_exc(limit=1))
         try:
             await create_all(db, event)
-        except Exception as e:
+        except Exception:
             logger.error(format_exc())
     finally:
         if not event.is_set():

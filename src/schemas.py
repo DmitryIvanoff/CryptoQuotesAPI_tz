@@ -1,6 +1,7 @@
-import enum
 import datetime
-from pydantic import BaseModel, validator, ValidationError
+import enum
+
+from pydantic import BaseModel, ValidationError, validator
 
 
 class Granularity(enum.Enum):

@@ -1,5 +1,5 @@
 import logging.config
-import sys
+
 from loguru import logger
 
 DEBUG = True

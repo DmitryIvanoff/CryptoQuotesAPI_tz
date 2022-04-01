@@ -1,6 +1,8 @@
 import datetime
+
 import aiohttp
-from schemas import Granularity, Exchange, Pair, Candle
+
+from schemas import Candle, Exchange, Granularity, Pair
 from settings import logger
 
 MARKETS = {
@@ -45,7 +47,7 @@ async def load_data(
 async def load_from_kraken(
     exchange: Exchange, pair: Pair, since: datetime.datetime, interval: Granularity
 ) -> list[Candle]:
-    candles = []
+    candles: list[Candle] = []
     market_pair_in = MARKETS[exchange.value]["pairs"][pair.value][0]
     market_pair_out = MARKETS[exchange.value]["pairs"][pair.value][1]
     if interval:
@@ -68,7 +70,7 @@ async def load_from_kraken(
                 return candles
             result = resp["result"]
             data = result[market_pair_out]
-            last = result["last"]
+            result["last"]
             for since, _open, high, low, close, _, volume, trades in data:
                 candles.append(
                     Candle(

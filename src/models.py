@@ -1,29 +1,25 @@
-import datetime
-import databases
 import asyncio
+import datetime
 from pprint import pformat
-from sqlalchemy.schema import CreateTable, CreateIndex, Index, DropTable, DropIndex
+
+import databases
 from sqlalchemy import (
     Column,
-    Integer,
     DateTime,
-    Float,
     Enum,
-    Table,
+    Float,
+    Integer,
     MetaData,
     PrimaryKeyConstraint,
-    select,
-    insert,
-    update,
+    Table,
     func,
-    cast,
-    Date,
-    and_,
-    or_,
+    select,
     text,
 )
-from schemas import Granularity, Exchange, Pair, Candle, CandleOut
+from sqlalchemy.schema import CreateIndex, CreateTable, DropIndex, DropTable, Index
+
 from markets import load_data
+from schemas import Candle, CandleOut, Exchange, Granularity, Pair
 from settings import logger
 
 metadata = MetaData()
@@ -88,7 +84,7 @@ async def create_all(db: databases.Database, event: asyncio.Event | None = None)
         event.set()
 
 
-async def create_table(db, table):
+async def create_table(db: databases.Database, table: Table) -> None:
     t = TABLES[table]
     logger.debug(t)
     query = CreateTable(t, if_not_exists=True)
@@ -106,7 +102,7 @@ async def create_table(db, table):
 
 async def load_candles_to_table(
     db: databases.Database, table: Table, candles: list[Candle]
-):
+) -> None:
     if candles:
         await db.execute(table.insert().values([candle.dict() for candle in candles]))
 
@@ -139,7 +135,7 @@ async def fetch_data(
     return await db.fetch_all(query)
 
 
-async def check_data(db: databases.Database):
+async def check_data(db: databases.Database) -> None:
     logger.info("checking data...")
     futures = []
     for interval in Granularity:
@@ -149,7 +145,7 @@ async def check_data(db: databases.Database):
     await asyncio.gather(*futures)
 
 
-async def load_from_exchange_to_db(db, exchange, interval, pair):
+async def load_from_exchange_to_db(db, exchange, interval, pair) -> None:
     table = TABLES[(pair, interval)]
     result: Candle | None = await db.fetch_one(
         table.select()
