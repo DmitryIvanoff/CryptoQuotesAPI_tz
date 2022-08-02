@@ -54,7 +54,7 @@ async def get_db():
         yield db
 
 
-@app.get(r"/candles/{pair:path}", response_model=list[CandleOut])
+@app.get(r"/candles/{pair:path}/", response_model=list[CandleOut])
 async def get_candles(
     pair: Pair,
     by: Granularity = Granularity.by_hour,

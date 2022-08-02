@@ -17,10 +17,10 @@ license = "MIT Licence"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-fastapi = "^0.75.0"
-uvicorn = {extras = ["standard"], version = "^0.17.6"}
+fastapi = "^0.*"
+uvicorn = {extras = ["standard"], version = "^0.*"}
 aiohttp = "^3.8.1"
-databases = {extras = ["aiosqlite"], version = "^0.5.5"}
+databases = {extras = ["aiosqlite"], version = "^0.*"}
 aiosqlite = "^0.17.0"
 SQLAlchemy = "^1.4.32"
 loguru = "^0.6.0"
@@ -30,7 +30,7 @@ black = "^22.1.0"
 sqlalchemy-stubs = "^0.4"
 autoflake = "^1.4"
 isort = "^5.10.1"
-mypy = "^0.942"
+mypy = "^0.*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

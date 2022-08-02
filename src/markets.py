@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 
 import aiohttp
@@ -33,19 +34,26 @@ async def load_data(
     exchange: Exchange,
     pair: Pair,
     since: datetime.datetime,
+    session: aiohttp.client.ClientSession,
     interval: Granularity = Granularity.by_hour,
 ) -> list[Candle]:
     candles = []
     if exchange == Exchange.kraken:
-        candles = await load_from_kraken(exchange, pair, since, interval)
+        candles = await load_from_kraken(exchange, pair, since, interval, session)
     elif exchange == Exchange.bitfinex:
-        candles = await load_from_bitfinex(exchange, interval, pair, since)
+        candles = await load_from_bitfinex(
+            exchange, interval, pair, since, session
+        )
 
     return candles
 
 
 async def load_from_kraken(
-    exchange: Exchange, pair: Pair, since: datetime.datetime, interval: Granularity
+    exchange: Exchange,
+    pair: Pair,
+    since: datetime.datetime,
+    interval: Granularity,
+    session: aiohttp.client.ClientSession,
 ) -> list[Candle]:
     candles: list[Candle] = []
     market_pair_in = MARKETS[exchange.value]["pairs"][pair.value][0]
@@ -60,60 +68,61 @@ async def load_from_kraken(
         "since": int(since.timestamp()),
     }
     params.update({"interval": interval}) if interval else None
-    async with aiohttp.client.ClientSession() as session:
-        async with session.get(
-            MARKETS[exchange.value]["endpoint"], params=params
-        ) as response:
-            resp = await response.json()
-            if e := resp["error"]:
-                logger.error(e)
-                return candles
-            result = resp["result"]
-            data = result[market_pair_out]
-            result["last"]
-            for since, _open, high, low, close, _, volume, trades in data:
-                candles.append(
-                    Candle(
-                        since=datetime.datetime.fromtimestamp(since),
-                        open=_open,
-                        high=high,
-                        low=low,
-                        close=close,
-                        volume=volume,
-                        trades=trades,
-                        exchange=exchange,
-                    )
+    async with session.get(
+        MARKETS[exchange.value]["endpoint"], params=params
+    ) as response:
+        resp = await response.json()
+        if e := resp["error"]:
+            logger.error(e)
+            return candles
+        result = resp["result"]
+        data = result[market_pair_out]
+        for since, _open, high, low, close, _, volume, trades in data:
+            candles.append(
+                Candle(
+                    since=datetime.datetime.fromtimestamp(since),
+                    open=_open,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
+                    trades=trades,
+                    exchange=exchange,
                 )
+            )
     return candles
 
 
-async def load_from_bitfinex(exchange, interval, pair, since) -> list[Candle]:
+async def load_from_bitfinex(
+    exchange,
+    interval,
+    pair,
+    since,
+    session: aiohttp.ClientSession,
+) -> list[Candle]:
     candles = []
     market_pair = MARKETS[exchange.value]["pairs"][pair.value]
     interval = MARKETS[exchange.value]["intervals"][interval.value]
     params = {"start": since.timestamp() * 1e3, "limit": 10000}
-    async with aiohttp.client.ClientSession() as session:
-        async with session.get(
-            MARKETS[exchange.value]["endpoint"].format(
-                interval=interval, pair=market_pair
-            ),
-            ssl=False,
-            params=params,
-        ) as response:
-            resp = await response.json()
-            data = resp
-            if not data:
-                return candles
-            for since, _open, close, high, low, volume in data:
-                candles.append(
-                    Candle(
-                        since=datetime.datetime.fromtimestamp(since / 1000),
-                        open=_open,
-                        high=high,
-                        low=low,
-                        close=close,
-                        volume=volume,
-                        exchange=exchange,
-                    )
+    async with session.get(
+        MARKETS[exchange.value]["endpoint"].format(interval=interval, pair=market_pair),
+        ssl=False,
+        params=params,
+    ) as response:
+        resp = await response.json()
+        data = resp
+        if not data:
+            return candles
+        for since, _open, close, high, low, volume in data:
+            candles.append(
+                Candle(
+                    since=datetime.datetime.fromtimestamp(since / 1000),
+                    open=_open,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
+                    exchange=exchange,
                 )
+            )
     return candles

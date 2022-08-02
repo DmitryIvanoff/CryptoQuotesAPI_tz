@@ -1,8 +1,12 @@
 import asyncio
 import datetime
+import time
 from pprint import pformat
 
+
+import aiohttp.client
 import databases
+
 from sqlalchemy import (
     Column,
     DateTime,
@@ -15,7 +19,9 @@ from sqlalchemy import (
     func,
     select,
     text,
+
 )
+from sqlalchemy.sql import quoted_name
 from sqlalchemy.schema import CreateIndex, CreateTable, DropIndex, DropTable, Index
 
 from markets import load_data
@@ -101,51 +107,55 @@ async def create_table(db: databases.Database, table: Table) -> None:
 
 
 async def load_candles_to_table(
-    db: databases.Database, table: Table, candles: list[Candle]
+        db: databases.Database, table: Table, candles: list[Candle]
 ) -> None:
     if candles:
         await db.execute(table.insert().values([candle.dict() for candle in candles]))
 
 
 async def fetch_data(
-    db: databases.Database, pair: Pair, interval: Granularity = Granularity.by_hour
+        db: databases.Database, pair: Pair, interval: Granularity = Granularity.by_hour
 ) -> list[CandleOut]:
     table: Table = TABLES[(pair, interval)]
 
+    escaped_table = quoted_name(table.name, False)
     # raw sql version with view
     query = f"""
-    SELECT "{table.name}".since AS time, "{table.name}".open, "{table.name}".high, "{table.name}".low, 
-    "{table.name}".close, "{table.name}".volume, "{table.name}".exchange, ("{table.name}".low = view.min_low) AS type
-    FROM "{table.name}" JOIN "{table.name}_max_min_daily_view" AS "view" ON 
-    "{table.name}".high = view.max_high OR "{table.name}".low = view.min_low ORDER BY "{table.name}".since DESC;
+    SELECT t.since AS time, t.open, t.high, t.low, 
+    t.close, t.volume, t.exchange, (t.low = view.min_low) AS type
+    FROM {escaped_table} as t JOIN {escaped_table}_max_min_daily_view AS "view" ON 
+    t.high = view.max_high OR t.low = view.min_low ORDER BY t.since DESC;
     """
-
-    # ORM version with subquery
-    # subq = select(
-    #     func.max(table.c.high).label("max_high"), func.min(table.c.low).label("min_low")
-    # ).group_by(text(f'date("{table.name}".since)'))
-    # logger.debug(subq)
-    # subq = subq.subquery()
-    # query = (
-    #     select(table)
-    #     .join(subq, or_(table.c.high == subq.c.max_high, table.c.low == subq.c.min_low))
-    #     .order_by(table.c.since.desc())
-    # )
     logger.debug(query)
+    logger.debug(f'table name: {table.name}')
     return await db.fetch_all(query)
 
 
 async def check_data(db: databases.Database) -> None:
     logger.info("checking data...")
+    started_at = time.perf_counter()
     futures = []
-    for interval in Granularity:
-        for pair in Pair:
-            for exchange in Exchange:
-                futures.append(load_from_exchange_to_db(db, exchange, interval, pair))
-    await asyncio.gather(*futures)
+    async with aiohttp.client.ClientSession() as session:
+        for interval in Granularity:
+            for pair in Pair:
+                for exchange in Exchange:
+                    futures.append(
+                        load_from_exchange_to_db(
+                            db, exchange, interval, pair, session
+                        )
+                    )
+        await asyncio.gather(*futures)
+    logger.info(f"elapsed: {time.perf_counter() - started_at:5.2}s")
+    await logger.complete()
 
 
-async def load_from_exchange_to_db(db, exchange, interval, pair) -> None:
+async def load_from_exchange_to_db(
+        db,
+        exchange,
+        interval,
+        pair,
+        session: aiohttp.client.ClientSession,
+) -> None:
     table = TABLES[(pair, interval)]
     result: Candle | None = await db.fetch_one(
         table.select()
@@ -154,40 +164,32 @@ async def load_from_exchange_to_db(db, exchange, interval, pair) -> None:
     )
     logger.debug(f"{exchange=}:\n{result=}")
     if not result:
-        # set start_since todo: to settings
         if interval == Granularity.by_hour:
             start_since = datetime.datetime.now() - datetime.timedelta(days=30)
         elif interval == Granularity.by_minute:
             start_since = datetime.datetime.now() - datetime.timedelta(days=1)
-        try:
-            candles = await load_data(
-                exchange,
-                pair,
-                start_since,
-                interval,
-            )
-        except Exception as e:
-            logger.exception(e)
-            return
-        logger.opt(lazy=True).debug(pformat(candles, indent=2, width=500))
-        await load_candles_to_table(db, table, candles)
+        else:
+            start_since = datetime.datetime.now() - datetime.timedelta(hours=1)
     else:
         start_since = result.since
-        try:
-            candles = await load_data(
-                exchange,
-                pair,
-                start_since,
-                interval,
-            )
-        except Exception as e:
-            logger.exception(e)
-            return
 
-        # filter candles
-        candles = [candle for candle in candles if candle.since != start_since]
-        if not candles:
-            return
+    try:
+        candles = await load_data(
+            exchange,
+            pair,
+            start_since,
+            session,
+            interval,
+        )
+    except Exception as e:
+        logger.exception(e)
+        return
 
-        logger.opt(lazy=True).debug(pformat(candles, indent=2, width=500))
-        await load_candles_to_table(db, table, candles)
+    # filter candles
+    candles = [candle for candle in candles if candle.since != start_since]
+    if not candles:
+        return
+
+    logger.opt(lazy=True).debug(pformat(candles, indent=2, width=500))
+
+    await load_candles_to_table(db, table, candles)
